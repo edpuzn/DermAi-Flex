@@ -16,7 +16,7 @@ const messages = {
       language: 'Dil',
     },
     landing: {
-      heroTitle: 'Yapay Zeka Destekli Deri Analizi',
+      heroTitle: 'Yapay Zeka Destekli Cilt Analizi',
       heroSubtitle: 'Klinik görüntüler ve raporlarla desteklenen yeni nesil dermatolojik tanı destek sistemi.',
       getStarted: 'Hemen Başlayın',
       learnMore: 'Nasıl Çalışır?',
