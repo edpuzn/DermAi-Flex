@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+node_modules/
+dist/
+.DS_Store
+backend/app/vector_db/chroma
+backend/outputs/
+frontend/dist/
+.vscode/
+.idea/

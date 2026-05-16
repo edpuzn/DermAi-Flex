@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: dermai_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DEMO_MODE=false
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      - ./backend/outputs:/app/outputs
+      - ./backend/app/vector_db:/app/app/vector_db
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s # İndirmeler için 5 dakika avans veriyoruz
+
+  frontend:
+    build: ./frontend
+    container_name: dermai_frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      - VITE_API_BASE_URL=http://127.0.0.1:8000/api
+    # Volumes for hot-reloading in dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
