@@ -1,21 +1,26 @@
 import uvicorn
 import logging
+from dotenv import load_dotenv
 import os
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from app.routes import analysis, ocr, rag, history, auth
 
-from app.inference.engine import prediction_engine
-from app.ocr.engine import ocr_engine
-from app.rag.engine import rag_engine
+# 1. Load environment variables
+load_dotenv()
 
-# Configure logging
+# 2. Configure logging IMMEDIATELY
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger("DermAI-Startup")
+
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.routes import analysis, ocr, rag, history, auth
+from app.inference.engine import prediction_engine
+from app.ocr.engine import ocr_engine
+from app.rag.engine import rag_engine
 
 DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
 

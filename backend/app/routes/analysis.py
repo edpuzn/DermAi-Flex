@@ -42,7 +42,8 @@ async def analyze_lesion(
                 "ocr_text": "Sample clinical report text: Patient presents with asymmetric lesion on back...",
                 "explanation": "DEMO MODE: Analysis of visual features shows asymmetric structures and irregular pigment network. Histopathological correlation is recommended.",
                 "risk_level": "High",
-                "disclaimer": "DEMO MODE ACTIVE: This is sample data for demonstration purposes only."
+                "disclaimer": "DEMO MODE ACTIVE: This is sample data for demonstration purposes only.",
+                "heatmap": "https://pub-807e32a67e4544d69352e8250ba95f9c.r2.dev/gradcam_sample.jpg"
             }
 
         # 2. Validation: File Size Checks
@@ -76,21 +77,39 @@ async def analyze_lesion(
             
         # 6. Image Inference (if image exists)
         predictions = []
-        raw_predictions = []
+        heatmap = None
         if image:
             logger.info(f"[{request_id}] Image detected. Executing EfficientNet-B4 inference.")
             image_bytes = await image.read()
-            raw_predictions = prediction_engine.predict(image_bytes)
+            inference_result = prediction_engine.predict(image_bytes)
             
-            # Map labels and convert to percentage for API response
+            # Extract from result dictionary
+            heatmap = inference_result.get("heatmap")
+            raw_predictions = inference_result.get("predictions", [])
+            
+            # Map predictions for API response
             predictions = [
-                {"class": p["label"], "confidence": round(p["confidence"] * 100, 2)}
+                {"class": p["class"], "confidence": round(p["confidence"], 2)}
                 for p in raw_predictions
             ]
             
         # 7. RAG Explanation
         logger.info(f"[{request_id}] Generating RAG-based clinical explanation.")
         explanation = rag_engine.generate_explanation(raw_predictions if image else [], ocr_text)
+        
+        # 8. Dynamic Risk Calculation
+        import re
+        calculated_risk = "Medium"
+        if image and predictions:
+            calculated_risk = "High" if any(p['confidence'] > 70 for p in predictions) else "Medium"
+        else:
+            # Report-Only mode: parse the hidden tag <!-- RISK: High/Medium/Low -->
+            risk_match = re.search(r"<!--\s*RISK:\s*(High|Medium|Low)\s*-->", explanation, re.IGNORECASE)
+            if risk_match:
+                calculated_risk = risk_match.group(1).capitalize()
+                logger.info(f"[{request_id}] Extracted risk level '{calculated_risk}' from RAG explanation.")
+            else:
+                logger.warning(f"[{request_id}] Could not parse risk level from explanation, defaulting to 'Medium'.")
         
         total_time = (time.time() - start_time) * 1000
         logger.info(f"[{request_id}] Analysis request completed in {total_time:.2f}ms")
@@ -99,8 +118,9 @@ async def analyze_lesion(
             "predictions": predictions,
             "ocr_text": ocr_text,
             "explanation": explanation,
-            "risk_level": "High" if any(p['confidence'] > 70 for p in predictions) else "Medium",
-            "disclaimer": "SCIENTIFIC VALIDATION PASS: This result is AI-generated for educational/research purposes. Correlation with clinical and histopathological findings is mandatory."
+            "risk_level": calculated_risk,
+            "disclaimer": "SCIENTIFIC VALIDATION PASS: This result is AI-generated for educational/research purposes. Correlation with clinical and histopathological findings is mandatory.",
+            "heatmap": heatmap
         }
 
     except HTTPException as he:

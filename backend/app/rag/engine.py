@@ -16,12 +16,37 @@ class RAGEngine:
         # Gemini Setup
         api_key = os.getenv("GEMINI_API_KEY")
         if api_key:
-            genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
-            logger.info("✅ Gemini 1.5 Flash Engine initialized.")
+            try:
+                genai.configure(api_key=api_key)
+                
+                # Profesyonel Sistem Talimatı (System Instruction)
+                system_instruction = """
+                Sen DermAI-Flex platformunun Klinik Karar Destek Asistanısın (CDSS). 
+                Görevin, verileri sentezleyerek temiz HTML formatında bir rapor sunmaktır.
+                
+                FORMAT KURALLARI:
+                1. ASLA Markdown karakterleri (####, **, ---) kullanma.
+                2. Yanıtını sadece HTML etiketleri (<h3>, <p>, <ul>, <li>, <strong>) kullanarak yapılandır.
+                3. Profesyonel ve temiz bir görünüm için paragrafları <p> içinde sun.
+                4. Her zaman Türkçe ve profesyonel bir dil kullan.
+                5. Başlıklarda (<h3>) kesinlikle emoji KULLANMA.
+                """
+                
+                self.model = genai.GenerativeModel(
+                    model_name='gemini-2.5-flash', 
+                    system_instruction=system_instruction
+                )
+                
+                # Log key status (masked)
+                masked_key = f"{api_key[:4]}...{api_key[-4:]}" if len(api_key) > 8 else "***"
+                logger.info(f"🔑 Gemini API Key found: {masked_key}")
+                logger.info("✅ Gemini Decision Support System (CDSS) initialized.")
+            except Exception as e:
+                self.model = None
+                logger.error(f"❌ Gemini Configuration Error: {e}")
         else:
             self.model = None
-            logger.warning("⚠️ GEMINI_API_KEY not found. Falling back to local synthesis.")
+            logger.warning("⚠️ GEMINI_API_KEY not found in environment! Check your .env file.")
 
         try:
             self.client = chromadb.PersistentClient(path=db_path)
@@ -61,49 +86,94 @@ class RAGEngine:
         
         return found_data
 
+    def _generate_report_only_explanation(self, ocr_text):
+        if not self.model:
+            return "Gemini API aktif değil."
+            
+        prompt = f"""
+        Aşağıda, bir hastaya ait laboratuvar tahlili veya patoloji raporundan elde edilen OCR metin verileri verilmiştir.
+        Bu tıbbi verileri analiz ederek temiz HTML formatında bir 'Klinik Karar Destek Raporu' oluştur.
+        Markdown karakterlerini (**, #, -) kesinlikle KULLANMA.
+        
+        OCR METİN VERİLERİ:
+        {ocr_text}
+        
+        YAPMAN GEREKENLER:
+        1. Metin içindeki tüm anormal/sınır dışı tıbbi değerleri (örneğin WBC, CRP, Vitamin D vb.) tespit et ve 'Analiz Özeti' bölümünde açıkla.
+        2. Bu değerlerin klinik korelasyonunu ve olası klinik anlamlarını (örneğin yüksek CRP ve WBC'nin aktif enfeksiyona işaret etmesi vb.) 'Klinik Korelasyon' bölümünde yorumla.
+        3. Hekime kılavuzluk edecek 'Önerilen Sonraki Adımlar' (örneğin uzman dermatolog konsültasyonu, ileri tetkik, rutin takip vb.) sun.
+        4. Analiz ettiğin verilere dayanarak hastanın genel risk seviyesini 'High', 'Medium' veya 'Low' olarak belirle ve bunu HTML'in en sonuna gizli bir yorum satırı olarak ekle: <!-- RISK: RiskSeviyesi --> (Örn: <!-- RISK: High -->)
+        
+        İSTENEN HTML YAPISI ÖRNEĞİ:
+        <h3>Analiz Özeti</h3>
+        <p>...</p>
+        <h3>Klinik Korelasyon</h3>
+        <ul><li>...</li></ul>
+        <h3>Önerilen Sonraki Adımlar</h3>
+        <p>...</p>
+        <hr>
+        <p><strong>Uyarı:</strong> Bu bir tıbbi teşhis değildir. Sadece klinik karar destek amaçlıdır.</p>
+        <!-- RISK: High -->
+        """
+        
+        try:
+            response = self.model.generate_content(prompt)
+            clean_html = response.text.replace('```html', '').replace('```', '').strip()
+            return clean_html
+        except Exception as e:
+            logger.error(f"Gemini API Report-Only Error: {e}")
+            return "Gemini sentezleme hatası. Lütfen daha sonra tekrar deneyin."
+
     def generate_explanation(self, predictions, ocr_text):
         if not predictions:
+            if ocr_text:
+                return self._generate_report_only_explanation(ocr_text)
             return "Analiz verisi yetersiz."
 
         top_pred = predictions[0]
-        label = top_pred['label']
-        confidence = top_pred['confidence']
+        # PredictionEngine now uses 'class' instead of 'label'
+        class_name = top_pred['class']
+        confidence = top_pred['confidence'] # Already multiplied by 100 in engine.py
         
         # 1. Kan Değerlerini Ayıkla
         blood_data = self._analyze_blood_work(ocr_text) if ocr_text else {}
 
         # 2. Literatürden Bilgi Çek (RAG)
-        context_data = self.collection.query(query_texts=[label], n_results=2)
+        context_data = self.collection.query(query_texts=[class_name], n_results=2)
         retrieved_docs = context_data.get('documents', [[]])[0]
         
         # 3. Gemini ile Akıllı Sentez
         if self.model:
             prompt = f"""
-            Sen profesyonel, şefkatli ve uzman bir dermatoloji asistanısın. Görevin, bir hastaya yapay zeka analiz sonuçlarını anlaşılır ve uygulanabilir bir dille açıklamak.
-            
-            VERİLER:
-            - Görsel Analiz Tahmini: {label} (Güven Oranı: %{confidence*100:.1f})
-            - Kan Değerleri (OCR): {blood_data}
-            - Tıbbi Literatür Notları: {retrieved_docs}
-            - Ham OCR Metni (Filtrelenmiş): {ocr_text[:500] if ocr_text else 'Yok'}
+            Aşağıdaki verileri sentezleyerek temiz HTML formatında bir 'Klinik Karar Destek Raporu' oluştur.
+            Markdown karakterlerini (**, #, -) kesinlikle KULLANMA.
 
-            TALİMATLAR:
-            1. Teknik terimleri açıkla (örneğin Aktinik Keratoz ne demek?).
-            2. Kan değerleri ile cilt durumunu ilişkilendir (Örn: D vitamini düşükse bunun cilt sağlığına etkisini söyle).
-            3. Hastaya panik yaptırmadan, somut 'Sonraki Adımlar' öner.
-            4. Dili her zaman Türkçe olsun.
-            5. Cevabın sonunda mutlaka 'Bu bir tıbbi teşhis değildir, mutlaka doktorunuza danışın' uyarısını ekle.
-            6. Yanıtını Markdown formatında (başlıklar, listeler kullanarak) düzenle.
+            [VERİLER]
+            - Tahmin: {class_name} (Güven: %{confidence:.1f})
+            - Kan Değerleri: {blood_data}
+            - Referanslar: {retrieved_docs}
+
+            İSTENEN HTML YAPISI ÖRNEĞİ:
+            <h3>Analiz Özeti</h3>
+            <p>...</p>
+            <h3>Klinik Korelasyon</h3>
+            <ul><li>...</li></ul>
+            <h3>Önerilen Sonraki Adımlar</h3>
+            <p>...</p>
+            <hr>
+            <p><strong>Uyarı:</strong> Bu bir tıbbi teşhis değildir...</p>
             """
             
             try:
                 response = self.model.generate_content(prompt)
-                return response.text
+                # Ensure no markdown backticks wrap the HTML
+                clean_html = response.text.replace('```html', '').replace('```', '').strip()
+                return clean_html
             except Exception as e:
                 logger.error(f"Gemini API Error: {e}")
                 return "Gemini sentezleme hatası. Lütfen daha sonra tekrar deneyin."
         
         # Fallback (API yoksa eski yöntem)
-        return f"Gemini API aktif değil. Görsel tahmin: {label} (%{confidence*100:.1f})"
+        return f"Gemini API aktif değil. Görsel tahmin: {class_name} (%{confidence:.1f})"
 
 rag_engine = RAGEngine()

@@ -242,7 +242,12 @@ const handleAnalyze = async () => {
   if (store.error) {
     showError(store.error)
   } else {
-    router.push('/results')
+    const isReportOnly = !store.analysisResult?.predictions || store.analysisResult.predictions.length === 0
+    if (isReportOnly) {
+      router.push('/report-results')
+    } else {
+      router.push('/results')
+    }
   }
 }
 

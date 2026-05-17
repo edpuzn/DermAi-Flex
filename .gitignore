@@ -9,3 +9,7 @@ backend/outputs/
 frontend/dist/
 .vscode/
 .idea/
+backend/outputs/*
+.venv/
+venv/
+backend/scratch/

@@ -15,3 +15,4 @@ class AnalysisResponse(BaseModel):
     explanation: str
     risk_level: str
     disclaimer: str
+    heatmap: Optional[str] = None

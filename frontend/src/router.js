@@ -3,6 +3,7 @@ import LandingPage from './pages/LandingPage.vue'
 import LoginPage from './pages/LoginPage.vue'
 import Dashboard from './pages/Dashboard.vue'
 import ResultPage from './pages/ResultPage.vue'
+import ReportResultPage from './pages/ReportResultPage.vue'
 import HistoryPage from './pages/HistoryPage.vue'
 
 import { useAuthStore } from './stores/auth'
@@ -28,6 +29,12 @@ const routes = [
     path: '/results',
     name: 'Results',
     component: ResultPage,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/report-results',
+    name: 'ReportResults',
+    component: ReportResultPage,
     meta: { requiresAuth: true }
   },
   {

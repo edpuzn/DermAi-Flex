@@ -62,6 +62,11 @@ const getRiskClass = (level) => {
 
 const viewResult = (item) => {
   store.analysisResult = item.result
-  router.push('/results')
+  const isReportOnly = !item.result?.predictions || item.result.predictions.length === 0
+  if (isReportOnly) {
+    router.push('/report-results')
+  } else {
+    router.push('/results')
+  }
 }
 </script>

@@ -79,7 +79,9 @@ const messages = {
         medium: "ORTA RİSK",
         low: "DÜŞÜK RİSK",
         findSpecialist: "Uzman Randevusu Al →",
-        clinicalEvaluation: "Klinik muayene şarttır"
+        clinicalEvaluation: "Klinik muayene şarttır",
+        mediumDesc: "Klinik muayene önerilir",
+        lowDesc: "Rutin kontrol yeterlidir"
       },
       ragData: {
         similarCasesTitle: "Benzer Klinik Vakalar",
@@ -171,7 +173,9 @@ const messages = {
         medium: "MEDIUM RISK",
         low: "LOW RISK",
         findSpecialist: "Find Specialist →",
-        clinicalEvaluation: "Clinical exam required"
+        clinicalEvaluation: "Clinical exam required",
+        mediumDesc: "Clinical evaluation recommended",
+        lowDesc: "Routine follow-up is sufficient"
       },
       ragData: {
         similarCasesTitle: "Similar Clinical Cases",

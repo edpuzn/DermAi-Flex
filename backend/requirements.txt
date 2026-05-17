@@ -6,18 +6,12 @@ torchvision
 timm
 paddleocr==2.7.3
 paddlepaddle==2.6.2
-google-generativeai==0.4.1
-
-
+google-generativeai>=0.7.0
+python-dotenv
 
 chromadb
 pydantic
-pydantic-settings
-python-dotenv
-httpx
 numpy==1.26.4
 pillow
 PyMuPDF
-langchain
-langchain-community
 sentence-transformers

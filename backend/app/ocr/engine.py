@@ -81,7 +81,7 @@ class OCREngine:
                         if res:
                             for line in res:
                                 full_text += line[1][0] + " "
-            
+            return full_text
         except Exception as e:
             logger.error(f"OCR processing failed: {e}")
             raise RuntimeError(f"OCR Pipeline Error: {str(e)}")
